@@ -1,0 +1,6 @@
+streamlit run processar_documentos.py
+streamlit run chatbot_app.py
+
+
+-----
+streamlit run chatbot_app_Works.py

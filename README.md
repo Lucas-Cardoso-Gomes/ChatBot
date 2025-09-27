@@ -1,2 +1,5 @@
 # ChatBot
 ChatBot
+
+Requisitos:
+Ollama
