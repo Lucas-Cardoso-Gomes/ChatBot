@@ -1,13 +1,45 @@
 import os
+import pandas as pd
 import streamlit as st
-from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, CSVLoader, UnstructuredEmailLoader
+from langchain.docstore.document import Document
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, UnstructuredEmailLoader, UnstructuredPowerPointLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 CAMINHO_DA_PASTA = "dados-Brutos"
-
 PASTA_DA_BASE_VETORIAL = "base_de_conhecimento_faiss"
+
+def carregar_excel_como_texto(file_path):
+    """
+    Lê um arquivo Excel, itera por todas as planilhas e linhas,
+    e converte cada linha em um Documento de texto descritivo.
+    """
+    try:
+        xls = pd.ExcelFile(file_path)
+        documentos = []
+        for sheet_name in xls.sheet_names:
+            df = xls.parse(sheet_name)
+            df.dropna(how='all', inplace=True)
+            if df.empty:
+                continue
+
+            for index, row in df.iterrows():
+                row_content_parts = []
+                for col_name, cell_value in row.items():
+                    if pd.notna(cell_value) and str(cell_value).strip():
+                        row_content_parts.append(f"{col_name}: {cell_value}")
+                
+                row_content = ", ".join(row_content_parts)
+                
+                if row_content:
+                    page_content = f"Na planilha '{sheet_name}', linha {index + 2}, os dados são: {row_content}"
+                    metadata = {"source": file_path, "sheet": sheet_name, "row": index + 2}
+                    documentos.append(Document(page_content=page_content, metadata=metadata))
+        return documentos
+    except Exception as e:
+        print(f"Erro ao processar o arquivo Excel {file_path}: {e}")
+        return []
 
 def carregar_documentos(caminho_pasta):
     """Lê todos os arquivos de uma pasta e seus subdiretórios."""
@@ -36,10 +68,12 @@ def carregar_documentos(caminho_pasta):
                 elif file.endswith('.eml'):
                     loader = UnstructuredEmailLoader(file_path)
                     documentos.extend(loader.load())
-                # Adicionar loader para Excel se necessário (pode ser complexo)
-                # elif file.endswith('.xlsx'):
-                #     loader = # ... um loader para excel
-                #     documentos.extend(loader.load())
+                elif file.endswith('.pptx'):
+                    loader = UnstructuredPowerPointLoader(file_path)
+                    documentos.extend(loader.load())
+                elif file.endswith(('.xlsx', '.xls')):
+                    documentos.extend(carregar_excel_como_texto(file_path))
+
             except Exception as e:
                 print(f"Erro ao ler o arquivo {file_path}: {e}")
             
@@ -47,7 +81,7 @@ def carregar_documentos(caminho_pasta):
             progress_bar.progress(files_processed / total_files, text=f"Lendo: {file}")
 
     progress_bar.empty()
-    st.success(f"{len(documentos)} documentos carregados com sucesso.")
+    st.success(f"Leitura concluída! {len(documentos)} documentos/partes processados.")
     return documentos
 
 def main():
